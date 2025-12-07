@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pusula Testi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            touch-action: manipulation;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 28px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .score {
+            background: white;
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .correct {
+            color: #10b981;
+        }
+        
+        .wrong {
+            color: #ef4444;
+        }
+        
+        .canvas-container {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 0 auto;
+        }
+        
+        .result-indicator {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 48px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .result-indicator.show {
+            opacity: 1;
+        }
+        
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            background: white;
+            border: none;
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            touch-action: manipulation;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 24px;
+            }
+            
+            .score {
+                font-size: 18px;
+            }
+            
+            .buttons-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+            }
+            
+            .btn {
+                padding: 15px 10px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pusula Testi</h1>
+        
+        <div class="score">
+            <span class="correct">Doğru: <span id="correct">0</span></span>
+            <span style="margin: 0 15px;">|</span>
+            <span class="wrong">Yanlış: <span id="wrong">0</span></span>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="compass" width="400" height="400"></canvas>
+            <div id="result" class="result-indicator"></div>
+        </div>
+        
+        <div class="buttons-grid">
+            <button class="btn" onclick="checkAnswer('Ş')">Ş</button>
+            <button class="btn" onclick="checkAnswer('Şşq')">Şşq</button>
+            <button class="btn" onclick="checkAnswer('Şq')">Şq</button>
+            <button class="btn" onclick="checkAnswer('Cşq')">Cşq</button>
+            <button class="btn" onclick="checkAnswer('C')">C</button>
+            <button class="btn" onclick="checkAnswer('CQ')">CQ</button>
+            <button class="btn" onclick="checkAnswer('Q')">Q</button>
+            <button class="btn" onclick="checkAnswer('ŞQ')">ŞQ</button>
+        </div>
+    </div>
+
+    <script>
+        const directions = {
+            "Ş": 90, "Şşq": 45, "Şq": 0, "Cşq": 315,
+            "C": 270, "CQ": 225, "Q": 180, "ŞQ": 135
+        };
+        
+        let correctCount = 0;
+        let wrongCount = 0;
+        let currentDirection = "";
+        let answersLocked = false;
+        
+        const canvas = document.getElementById('compass');
+        const ctx = canvas.getContext('2d');
+        const resultDiv = document.getElementById('result');
+        
+        function drawCompass(shownDirection, currentDir, rotationAngle) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 150;
+            
+            // Pusula çemberi
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = "#333";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Merkez nokta
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = "black";
+            ctx.fill();
+            
+            // Gösterilen yön (döndürülmüş)
+            const baseAngle = directions[shownDirection];
+            const shownAngleRad = ((baseAngle + rotationAngle) % 360) * Math.PI / 180;
+            const textX = centerX + radius * Math.cos(shownAngleRad);
+            const textY = centerY - radius * Math.sin(shownAngleRad);
+            
+            ctx.font = "bold 18px Arial";
+            ctx.fillStyle = "#333";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(shownDirection, textX, textY);
+            
+            // Ok çizimi
+            const arrowAngle = ((directions[currentDir] + rotationAngle) % 360) * Math.PI / 180;
+            const arrowLength = 120;
+            const arrowEndX = centerX + arrowLength * Math.cos(arrowAngle);
+            const arrowEndY = centerY - arrowLength * Math.sin(arrowAngle);
+            
+            // Ok çizgisi
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(arrowEndX, arrowEndY);
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            
+            // Ok başı
+            const arrowHeadSize = 15;
+            const angle1 = arrowAngle + Math.PI * 5 / 6;
+            const angle2 = arrowAngle - Math.PI * 5 / 6;
+            
+            ctx.beginPath();
+            ctx.moveTo(arrowEndX, arrowEndY);
+            ctx.lineTo(arrowEndX + arrowHeadSize * Math.cos(angle1), 
+                      arrowEndY - arrowHeadSize * Math.sin(angle1));
+            ctx.lineTo(arrowEndX + arrowHeadSize * Math.cos(angle2), 
+                      arrowEndY - arrowHeadSize * Math.sin(angle2));
+            ctx.closePath();
+            ctx.fillStyle = "red";
+            ctx.fill();
+        }
+        
+        function newQuestion() {
+            answersLocked = false;
+            const directionKeys = Object.keys(directions);
+            const rotationAngle = Math.floor(Math.random() * 360);
+            const shownDirection = directionKeys[Math.floor(Math.random() * directionKeys.length)];
+            currentDirection = directionKeys[Math.floor(Math.random() * directionKeys.length)];
+            
+            drawCompass(shownDirection, currentDirection, rotationAngle);
+            resultDiv.classList.remove('show');
+        }
+        
+        function checkAnswer(selectedDirection) {
+            if (answersLocked) return;
+            answersLocked = true;
+            
+            if (selectedDirection === currentDirection) {
+                correctCount++;
+                document.getElementById('correct').textContent = correctCount;
+                resultDiv.textContent = '✓';
+                resultDiv.style.color = '#10b981';
+            } else {
+                wrongCount++;
+                document.getElementById('wrong').textContent = wrongCount;
+                resultDiv.textContent = '✗';
+                resultDiv.style.color = '#ef4444';
+            }
+            
+            resultDiv.classList.add('show');
+            
+            setTimeout(() => {
+                newQuestion();
+            }, 1000);
+        }
+        
+        // İlk soruyu başlat
+        newQuestion();
+    </script>
+</body>
+</html>
